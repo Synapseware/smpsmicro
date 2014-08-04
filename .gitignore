@@ -21,6 +21,7 @@ TcfTransactionLog.csv
 *.b#*
 *.l#*
 *.s#*
+*.pro
 *.avw
 eagleup/
 Visual Micro/
