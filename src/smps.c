@@ -3,18 +3,23 @@
 volatile uint8_t	_process		= 0;
 volatile uint8_t	_lastSample		= 0;
 volatile uint8_t	_pwmtarget		= 0;
-
+volatile uint8_t	_rampsteps		= RAMP_STEPS;
+volatile uint8_t	_pwmmax			= 0;
 
 // -------------------------------------------------------------------------------------
 // Used to drive system events
 void initTimer0(void)
 {
 	// setup timer0 as our voltage comparator function
-	TCCR0A	=	(1<<WGM01);			// CTC
-	TCCR0B	=	(1<<CS01)	|		// clk/64 = 16mHz/1024 = 250kHz
-				(1<<CS00);
+	TCCR0A	=	(1<<WGM01)	|		// CTC
+				(0<<WGM00);
 
-	OCR0A	= 4;					// 250kHz/25 = 10kHz
+	TCCR0B	=	(0<<CS02)	|		// CLK/64: 16MHz/64 = 250KHz
+				(1<<CS01)	|
+				(1<<CS00)	|
+				(0<<WGM02);			// CTC
+
+	OCR0A	= 249;					// 250kHz/250 = 1KHz
 	TIMSK	|= (1<<OCIE0A);			// enable TCNT01 == OCR0A interrupt
 }
 
@@ -100,11 +105,20 @@ void initDiagLed(void)
 // -------------------------------------------------------------------------------------
 void setup()
 {
+	cli();
+	
 	// adjust power saving modes
 	PRR		= 	(0<<PRTIM0) |		// enable timer0
 				(0<<PRTIM1) |		// enable timer1
 				(1<<PRUSI)	|		// disable USI
 				(0<<PRADC);			// enable ADC
+
+	// initialize globals
+	_process	= 0;
+	_lastSample	= 0;
+	_pwmtarget	= 0;
+	_rampsteps	= RAMP_STEPS;
+	_pwmmax		= 0;
 
 	initDiagLed();
 	initTimer0();
@@ -120,6 +134,13 @@ void processADC(void)
 		PORTB	&=	~(1<<DIAG_LED);
 	else
 		PORTB	|=	(1<<DIAG_LED);
+
+	// What's the best way to detect an open-circuit condition for the LED?
+	//	- connect another high-ohm resister between Vout and Rsense (10k or more?)
+	//	- check for 0-volt reading from Rsense?
+	//		* how to start circuit from an off-state?
+	//
+	// Ramp-up timer
 
 	//if (0 == _lastSample)
 	//{
@@ -179,37 +200,24 @@ ISR(ADC_vect)
 }
 
 // -------------------------------------------------------------------------------------
-// Timer0 compare
+// Timer0 compareA interrupt handler (running @ 1KHz)
 ISR(TIM0_COMPA_vect)
 {
-	/*
-	// increment/decrement duty cycle based on comparator result
-	// ACO in ACSR is set when AIN0 (ref) is > AIN1.  In this scenario,
-	// ACO will be set when the voltage sags too low - more duty
-	// cycle will be required to keep the voltage up
-	if ((ACSR & (1<<ACO)) != 0)
+	// when powering up, limit the duty cycle to _pwmmax.
+	if (_rampsteps > 0)
 	{
-		DDRB |= (1<<PWM_OUTPUT);
-		_dutycycle++;
-		if (_dutycycle > CYCLE_MAX)
-		{
-			PORTB |= (1<<DIAG_LED);
-			_dutycycle = CYCLE_MAX;
-		}
+		_rampsteps--;
+		_pwmmax += RAMP_STEPS;
 	}
 	else
 	{
-		PORTB &= ~(1<<DIAG_LED);
-		_dutycycle--;
-		if (_dutycycle < CYCLE_MIN)
-		{
-			_dutycycle = CYCLE_MIN;
-
-			// disable PWM output since voltage is too high
-			DDRB &= ~(1<<PWM_OUTPUT);
-		}
+		_pwmmax = CYCLE_MAX;
 	}
 
-	OCR1B = _dutycycle;
-	*/
+	// check for open-circuit condition & restart the ramp-up process
+	if (_rampsteps == 0 && _lastSample == 0)
+	{
+		_rampsteps = RAMP_DELAY;
+		_pwmmax = 0;
+	}
 }
