@@ -18,13 +18,17 @@
 #define PWM_OUTPUT	PB1
 #define ADC_INPUT	PB4
 
-const uint8_t CYCLE_CLK     = 250;
-const uint8_t CYCLE_MAX	    = (CYCLE_CLK * 0.70)
-const uint8_t TARGET_ADC	= 74;
+#define TRUE	1
+#define FALSE	0
+#define bool	uint8_t
+
+#define CYCLE_CLK     		128
+#define CYCLE_MAX	    	84
+#define TARGET_ADC			65
 
 const uint8_t RAMP_DELAY    = 10;
 const uint8_t RAMP_START    = 5;
-const uint8_t RAMP_STEPS    = CYCLE_CLK / RAMP_DELAY;
+const uint8_t RAMP_STEPS    = 128 / 16;
 
 
 #endif

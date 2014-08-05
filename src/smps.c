@@ -1,10 +1,9 @@
 #include "smps.h"
 
-volatile uint8_t	_process		= 0;
 volatile uint8_t	_lastSample		= 0;
-volatile uint8_t	_pwmtarget		= 0;
-volatile uint8_t	_rampsteps		= RAMP_STEPS;
+volatile uint8_t	_rampsteps		= 0;
 volatile uint8_t	_pwmmax			= 0;
+volatile bool		_process		= FALSE;
 
 // -------------------------------------------------------------------------------------
 // Used to drive system events
@@ -40,9 +39,9 @@ void initTimer1(void)
 				(1<<COM1A1)	|
 				(0<<COM1A0)	|
 				(1<<PWM1A)	|		// enable PWM, channel A
-				(0<<CS13)	|		// PCK/1
+				(0<<CS13)	|		// PLLCLK/1
 				(0<<CS12)	|		// 
-				(0<<CS11)	|		// 
+				(1<<CS11)	|		// 
 				(1<<CS10);			// 
 
 	OCR1C	=	CYCLE_CLK - 1;		// 500KHz (64MHz / 128 = 500KHz)
@@ -60,7 +59,7 @@ void initADC(void)
 	ADMUX	=	(0<<REFS2)	|		// 1.1V: REF[2:0] = 010
 				(1<<REFS1)	|
 				(0<<REFS0)	|
-				(1<<ADLAR)	|		// Left-adjust result (read ADCL, then ADCH)
+				(0<<ADLAR)	|		// Right-adjust result (read ADCL, then ADCH)
 				(0<<MUX3)	|		// Setup to read ADC2/PB4
 				(0<<MUX2)	|
 				(1<<MUX1)	|
@@ -68,24 +67,17 @@ void initADC(void)
 
 	ADCSRA	=	(1<<ADEN)	|		// Enable the ADC
 				(1<<ADSC)	|
-				(0<<ADATE)	|
-				(0<<ADIE)	|
+				(1<<ADATE)	|
+				(1<<ADIE)	|
 				(1<<ADPS2)	|		// Setup ADC clock to be PCK/128
 				(1<<ADPS1)	|
 				(1<<ADPS0);
 
 	ADCSRB	=	(0<<BIN)	|
 				(0<<IPR)	|
-				(0<<ADTS2)	|
-				(0<<ADTS1)	|
-				(0<<ADTS0);
-
-	// wait for conversion to complete
-	_delay_ms(100);
-
-	// enable interrupt handling on the ADC
-	ADCSRA	|=	(1<<ADIF)	|
-				(1<<ADIE);
+				(0<<ADTS2)	|		// Enable auto-triggering on Timer0 Compare Match A
+				(1<<ADTS1)	|
+				(1<<ADTS0);
 
 	DDRB	&=	~(1<<PB4);			// Set PB4 as input
 
@@ -103,7 +95,7 @@ void initDiagLed(void)
 }
 
 // -------------------------------------------------------------------------------------
-void setup()
+void setup(void)
 {
 	cli();
 	
@@ -114,11 +106,9 @@ void setup()
 				(0<<PRADC);			// enable ADC
 
 	// initialize globals
-	_process	= 0;
 	_lastSample	= 0;
-	_pwmtarget	= 0;
 	_rampsteps	= RAMP_STEPS;
-	_pwmmax		= 0;
+	_pwmmax		= RAMP_START;
 
 	initDiagLed();
 	initTimer0();
@@ -127,13 +117,10 @@ void setup()
 }
 
 // -------------------------------------------------------------------------------------
+// Process the data from the ADC
 void processADC(void)
 {
-	// turn the LED on if it's within the sample range
-	if (_lastSample > TARGET_ADC - 2 && _lastSample < TARGET_ADC + 2)
-		PORTB	&=	~(1<<DIAG_LED);
-	else
-		PORTB	|=	(1<<DIAG_LED);
+	static uint8_t pwmTarget = 0;
 
 	// What's the best way to detect an open-circuit condition for the LED?
 	//	- connect another high-ohm resister between Vout and Rsense (10k or more?)
@@ -145,47 +132,52 @@ void processADC(void)
 	//if (0 == _lastSample)
 	//{
 	//	// protect against LED open circuit
-	//	_pwmtarget = 0;
+	//	pwmTarget = 0;
 	//}
 	//else
-	if (_lastSample > TARGET_ADC - 2)
+	if (_lastSample > TARGET_ADC + 1)
 	{
-		if (_pwmtarget > 1)
-			_pwmtarget--;
+		PORTB	|=	(1<<DIAG_LED);
+
+		// we've overshot the target voltage - diminish the duty cycle
+		if (pwmTarget > 0)
+			pwmTarget--;
 	}
-	else if (_lastSample < TARGET_ADC + 2)
+	else if (_lastSample < TARGET_ADC - 1)
 	{
-		if (_pwmtarget < CYCLE_MAX)
-			_pwmtarget++;
+		PORTB	|=	(1<<DIAG_LED);
+
+		// we've undershot the target voltage - increase the duty cycle
+		if (pwmTarget < CYCLE_MAX)
+			pwmTarget++;
+	}
+	else
+	{
+		// we're on target - turn on diag LED
+		PORTB	&=	~(1<<DIAG_LED);
 	}
 
-	OCR1A = _pwmtarget;
-
-	_process = 0;
-
-	// start a conversion
-	ADCSRA |= (1<<ADSC);
+	OCR1A = pwmTarget;
 }
 
 // -------------------------------------------------------------------------------------
-int main()
+int main(void)
 {
 	setup();
 
-	WDTCR &= 0b11011000;	// set for 16ms timeout
-	WDTCR |= (1<<WDE);		// enable watchdog timer
+	//WDTCR &= 0b11011000;	// set for 16ms timeout
+	//WDTCR |= (1<<WDE);		// enable watchdog timer
 
 	sei();
 
-	// start a conversion
-	ADCSRA |= (1<<ADSC);
-
 	while(1)
 	{
-		wdt_reset();
-
+		//wdt_reset();
 		if (_process)
+		{
 			processADC();
+			_process = FALSE;
+		}
 	}
 
 	return 0;
@@ -195,8 +187,11 @@ int main()
 // ADC conversion complete interrupt handler
 ISR(ADC_vect)
 {
-	_process = 1;
-	_lastSample = ADCH;
+	uint16_t sample = ADC;
+
+	_lastSample = sample & 0xFF;
+
+	_process = TRUE;
 }
 
 // -------------------------------------------------------------------------------------
@@ -218,6 +213,6 @@ ISR(TIM0_COMPA_vect)
 	if (_rampsteps == 0 && _lastSample == 0)
 	{
 		_rampsteps = RAMP_DELAY;
-		_pwmmax = 0;
+		_pwmmax = RAMP_START;
 	}
 }
