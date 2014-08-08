@@ -24,7 +24,7 @@
 
 #define CYCLE_CLK     		128
 #define CYCLE_MAX	    	84
-#define TARGET_ADC			65
+#define TARGET_ADC			56
 
 const uint8_t RAMP_DELAY    = 10;
 const uint8_t RAMP_START    = 5;
