@@ -77,7 +77,7 @@ SHARED = ./libs
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = $(TARGET).c
+SRC = 
 
 
 # List library files here
@@ -86,7 +86,8 @@ SRC = $(TARGET).c
 #LIBS = -lsyn	# Synapseware library :)
 
 # List C++ source files here. (C dependencies are automatically generated.)
-CPPSRC = 
+CPPSRC =	$(TARGET).cpp							\
+			$(SHARED)/drivers/builtin/adcutils.cpp
 
 
 # List Assembler source files here.
@@ -279,6 +280,7 @@ AVRDUDE_PROGRAMMER = stk500v2
 
 # com1 = serial port. Use lpt1 to connect to parallel port.
 AVRDUDE_PORT = com1    # programmer connected to serial device
+AVRDUDE_PORT = /dev/ttyACM0    # programmer connected to serial device
 
 AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
 #AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep
