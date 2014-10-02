@@ -73,11 +73,11 @@ OBJDIR = .
 
 
 # Shared source code
-SHARED = ./libs
+SHARED = ../libs
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = $(TARGET).c
+SRC = 
 
 
 # List library files here
@@ -86,7 +86,7 @@ SRC = $(TARGET).c
 #LIBS = -lsyn	# Synapseware library :)
 
 # List C++ source files here. (C dependencies are automatically generated.)
-CPPSRC =
+CPPSRC = $(TARGET).cpp
 
 
 # List Assembler source files here.
