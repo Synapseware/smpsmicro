@@ -10,36 +10,27 @@
 #include <avr/wdt.h>
 
 
-// Boost has in inverse relationship to duty cycle (shorter cycle = higher voltage, longer cycle = lower voltage)
-#define	PWM_SIGN_BOOST			-1
-
-// Buck has a direct relationship to duty cycle (shorter cycle = lower voltage, longer cycle = higher voltage)
-#define PWM_SIGN_BUCK			1
-
-
-const int8_t		DUTY_CYCLE_ADJUST		= PWM_SIGN_BOOST;
-
-
 // -------------------------------------------------------------------------------------
 // Pins
 
 #define DIAG_LED	PB2
 #define PWM_OUTPUT	PB4
-#define ADC_INPUT	PB3
+#define COMP_INPUT	PB3
 
-#define TRUE	1
-#define FALSE	0
-#define bool	uint8_t
+#define TRUE		1
+#define FALSE		0
+#define bool		uint8_t
 
-#define CYCLE_CLK     		160
-#define CYCLE_MAX	    	84
-#define TARGET_ADC			56
 
-const uint8_t RAMP_DELAY    = 10;
-const uint8_t RAMP_START    = 5;
-const uint8_t RAMP_STEPS    = 128 / 16;
+// -------------------------------------------------------------------------------------
+// Constants
+#define	VOLTAGE_IN				5
+#define VOLTAGE_OUT				3.3
 
-const float		V_TARGET	= 12.0;
+#define DUTY_CYCLE_CLK			160
+#define DUTY_CYCLE				(VOLTAGE_OUT/VOLTAGE_IN)
+const uint8_t DUTY_CYCLE_PWM	= (uint8_t)(DUTY_CYCLE_CLK * DUTY_CYCLE);
+
 
 #endif
 
