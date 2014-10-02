@@ -1,15 +1,16 @@
-#include "smps.h"
+#include "boost.h"
 
 volatile uint16_t	_lastSample		= 0;
 volatile uint8_t	_rampsteps		= 0;
 volatile uint8_t	_pwmmax			= 0;
 volatile bool		_process		= FALSE;
 
-static Adc			_adc();
+//volatile Adc		_adc();
+
 
 // -------------------------------------------------------------------------------------
 // Used to drive system events
-static void initTimer0(void)
+void initTimer0(void)
 {
 	// setup timer0 as our voltage comparator function
 	TCCR0A	=	(1<<WGM01)	|		// CTC
@@ -26,7 +27,7 @@ static void initTimer0(void)
 
 // -------------------------------------------------------------------------------------
 // Timer1 is the SMPS duty cycle timer
-static void initTimer1(void)
+void initTimer1(void)
 {
 	// Setup PLLCSR - note: PLL is enabled via fuses because we are driving uC clock from the PLL! (pg 97)
 	PLLCSR	=	(0<<LSM)	|		// disable low-speed mode (assuming two 1.2NiMh batteries)
@@ -58,7 +59,7 @@ static void initTimer1(void)
 
 // -------------------------------------------------------------------------------------
 // Setup the ADC to sample on ADC_INPUT
-static void initADC(void)
+void initADC(void)
 {
 	/*
 	ADMUX	=	(0<<REFS2)	|		// 1.1V: REF[2:0] = 010
@@ -91,36 +92,21 @@ static void initADC(void)
 
 	DDRB	&=	~(1<<ADC_INPUT);	// Set PB4 as input
 	*/
-
-	_adc.init();
 }
 
 // -------------------------------------------------------------------------------------
-static void initDiagLed(void)
+void initDiagLed(void)
 {
 	DDRB	|=	(1<<DIAG_LED);
 	PORTB	|=	(1<<DIAG_LED);
 }
 
 // -------------------------------------------------------------------------------------
-static void pwmOff(void)
-{
-	// disable PWM output pin
-	DDRB	&=	~(1<<PWM_OUTPUT);
-}
-
-// -------------------------------------------------------------------------------------
-static void pwmOn(void)
-{
-	// enable PWM output pin
-	DDRB	|=	(1<<PWM_OUTPUT);
-}
-
-// -------------------------------------------------------------------------------------
-static void setup(void)
+// Configure the system
+void setup(void)
 {
 	cli();
-	
+
 	// adjust power saving modes
 	PRR		= 	(0<<PRTIM0) |		// enable timer0
 				(0<<PRTIM1) |		// enable timer1
@@ -136,6 +122,7 @@ static void setup(void)
 	initTimer0();
 	initTimer1();
 	initADC();
+	//_adc.init();
 
 	pwmOff();
 
@@ -143,9 +130,27 @@ static void setup(void)
 }
 
 // -------------------------------------------------------------------------------------
-// Process the data from the ADC
-static void processADC(void)
+// Disable PWM output
+void pwmOff(void)
 {
+	// disable PWM output pin
+	DDRB	&=	~(1<<PWM_OUTPUT);
+}
+
+// -------------------------------------------------------------------------------------
+// Enable PWM output
+void pwmOn(void)
+{
+	// enable PWM output pin
+	DDRB	|=	(1<<PWM_OUTPUT);
+}
+
+// -------------------------------------------------------------------------------------
+// Process the data from the ADC
+void processADC(void)
+{
+	return;
+	/*
 	static uint16_t pwmTarget = 0;
 
 	// What's the best way to detect an open-circuit condition for the LED?
@@ -184,28 +189,7 @@ static void processADC(void)
 	}
 
 	OCR1A = pwmTarget;
-}
-
-// -------------------------------------------------------------------------------------
-static void processTimer0(void)
-{
-	// when powering up, limit the duty cycle to _pwmmax.
-	if (_rampsteps > 0)
-	{
-		_rampsteps--;
-		_pwmmax += RAMP_STEPS;
-	}
-	else
-	{
-		_pwmmax = CYCLE_MAX;
-	}
-
-	// check for open-circuit condition & restart the ramp-up process
-	if (_rampsteps == 0 && _lastSample == 0)
-	{
-		_rampsteps = RAMP_DELAY;
-		_pwmmax = RAMP_START;
-	}
+	*/
 }
 
 // -------------------------------------------------------------------------------------
@@ -238,13 +222,29 @@ ISR(ADC_vect)
 	uint16_t sample = (ADCH << 8) | (ADCL & 0xFF);
 
 	_lastSample = sample;
-
-	_process = TRUE;
+	//_adc.conversionComplete(sample);
 }
 
 // -------------------------------------------------------------------------------------
 // Timer0 compareA interrupt handler (running @ 1KHz)
+// Handles ramping up the boost controller
 ISR(TIM0_COMPA_vect)
 {
-	processTimer0();
+	// when powering up, limit the duty cycle to _pwmmax.
+	if (_rampsteps > 0)
+	{
+		_rampsteps--;
+		_pwmmax += RAMP_STEPS;
+	}
+	else
+	{
+		_pwmmax = CYCLE_MAX;
+	}
+
+	// check for open-circuit condition & restart the ramp-up process
+	if (_rampsteps == 0 && _lastSample == 0)
+	{
+		_rampsteps = RAMP_DELAY;
+		_pwmmax = RAMP_START;
+	}
 }
