@@ -63,7 +63,7 @@ FORMAT = ihex
 
 
 # Target file name (without extension).
-TARGET = buck
+TARGET = sync
 
 
 # Object files directory
