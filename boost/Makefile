@@ -73,7 +73,7 @@ OBJDIR = .
 
 
 # Shared source code
-LIBSDIR = ../libs
+LIBSDIR = ../../libs
 
 
 # List C source files here. (C dependencies are automatically generated.)
