@@ -1,4 +1,7 @@
-#include "buck.h"
+#include "sync.h"
+
+
+volatile uint8_t _sample = 0;
 
 
 // -------------------------------------------------------------------------------------
@@ -22,72 +25,99 @@ static void initTimer0(void)
 // Timer1 is the SMPS duty cycle timer
 static void initTimer1(void)
 {
-	PLLCSR	=	(0<<LSM)	|		// disable low-speed mode (assuming two 1.2NiMh batteries)
-				(1<<PLLE)	|		// make sure PLL is enabled
-				(1<<PCKE);			// enable high speed PLL clock
+	// Configure Timer1
+	{
+		/*
+		PLLCSR	=	(0<<LSM)	|		// disable low-speed mode (assuming at that VCC is at least 2.4v)
+					(1<<PLLE)	|		// make sure PLL is enabled
+					(1<<PCKE);			// enable high speed PLL clock
+		*/
+		PLLCSR	=	0;					// for testing, disable the PLL
 
-	TCCR1	=	(0<<CTC1)	|
-				(0<<COM1A1)	|
-				(0<<COM1A0)	|
-				(0<<PWM1A)	|		// disable PWM, channel A
-				(0<<CS13)	|		// PLLCLK/1
-				(0<<CS12)	|		// 
-				(1<<CS11)	|		// 
-				(0<<CS10);			// 
+		TCCR1	=	(0<<CTC1)	|		// 
+					(0<<COM1A1)	|		// see page 86 for details
+					(1<<COM1A0)	|		// 
+					(1<<PWM1A)	|		// enable channel A PWM
+					(0<<CS13)	|		// PLLCLK/16
+					(1<<CS12)	|		// PLLCLK/16
+					(0<<CS11)	|		// PLLCLK/16
+					(1<<CS10);			// PLLCLK/16
 
-	GTCCR	=	(1<<PWM1B)	|		// enable PWM, channel B
-				(1<<COM1B1)	|		// Clear at 0, set at match (we're driving p-channel mosfet!)
-				(0<<COM1B0)	|
-				(0<<TSM)	|		// disable counter/timer sync mode
-				(1<<COM1A1);		// we want to toggle OC1B with our PWM signal
+		GTCCR	|=	(0<<TSM)	|		// disable counter/timer sync mode
+					(0<<PWM1B)	|		// no PWM on channel B
+					(0<<COM1B1)	|		// 
+					(0<<COM1B0)	|		// 
+					(0<<FOC1B)	|		// 
+					(0<<FOC1A)	|		// 
+					(0<<PSR1)	|		// 
+					(0<<PSR0);			// 
 
-	OCR1C	=	DUTY_CYCLE_CLK - 1;
-	OCR1A	=	0;
-	OCR1B	=	DUTY_CYCLE_CLK - DUTY_CYCLE_PWM;
+		TIMSK	&= ~(
+					(1<<OCIE1A)	|		// clear the interrupt flags for Timer1
+					(1<<OCIE1B)	|
+					(1<<TOIE1)
+				);
+
+		OCR1C	=	DUTY_CYCLE_CLK - 1;
+		OCR1A	=	(DUTY_CYCLE_CLK / 2) - 1;
+		OCR1B	=	(DUTY_CYCLE_CLK / 2) - 1;
+	}
+
+	// Configure the deadtime generator
+	{
+		DTPS1	=	(1<<DTPS11)	|		// Deadtime prescalar
+					(1<<DTPS10);		// 
+
+		DT1A	=	(1<<DT1AH3)	|		// 
+					(1<<DT1AH2)	|		// 
+					(1<<DT1AH1)	|		// 
+					(1<<DT1AH0)	|		// 
+					(1<<DT1AL3)	|		// 
+					(1<<DT1AL2)	|		// 
+					(1<<DT1AL1)	|		// 
+					(1<<DT1AL0);		// 
+
+		DT1B	=	(0<<DT1BH3)	|		// 
+					(0<<DT1BH2)	|		// 
+					(0<<DT1BH1)	|		// 
+					(0<<DT1BH0)	|		// 
+					(0<<DT1BL3)	|		// 
+					(0<<DT1BL2)	|		// 
+					(0<<DT1BL1)	|		// 
+					(0<<DT1BL0);		// 
+	}
 }
 
 // -------------------------------------------------------------------------------------
 // Setup the ADC to sample on ADC_INPUT
-static void initComparator(void)
+static void initAdc(void)
 {
-	ADCSRA	=	(0<<ADEN)	|		// Disable the ADC
-				(0<<ADSC)	|
-				(0<<ADATE)	|
-				(0<<ADIE)	|
-				(0<<ADPS2)	|
-				(0<<ADPS1)	|
-				(0<<ADPS0);
+	ADMUX	=	(0<<REFS2)	|	// 1.1v internal reference
+				(1<<REFS1)	|	// 1.1v internal reference
+				(0<<REFS0)	|	// 1.1v internal reference
+				(1<<ADLAR)	|	// Left-adjust ADC result (so we just need to read ADCH)
+				(0<<MUX3)	|	// 
+				(0<<MUX2)	|	// 
+				(1<<MUX1)	|	// Select ADC2D as ADC input
+				(0<<MUX0);		// 
 
-	ADMUX	=	(0<<REFS2)	|
-				(0<<REFS1)	|
-				(0<<REFS0)	|
-				(0<<ADLAR)	|
-				(0<<MUX3)	|
-				(0<<MUX2)	|
-				(1<<MUX1)	|		// Select ADC3 as negative input to comparator
-				(1<<MUX0);
+	ADCSRA	=	(1<<ADEN)	|	// Enable the ADC
+				(1<<ADSC)	|	// Start a conversion
+				(1<<ADATE)	|	// Enable auto-trigger
+				(1<<ADIE)	|	// Enable interrupts
+				(1<<ADPS2)	|	// clk/64
+				(1<<ADPS1)	|	// clk/64
+				(0<<ADPS0);		// clk/64
 
-	ADCSRB	=	(1<<ACME)	|
-				(0<<BIN)	|
-				(0<<IPR)	|
-				(0<<ADTS2)	|
-				(0<<ADTS1)	|
-				(0<<ADTS0);
+	ADCSRB	=	(0<<BIN)	|	// 
+				(0<<IPR)	|	// 
+				(0<<ADTS2)	|	// free-running
+				(0<<ADTS1)	|	// free-running
+				(0<<ADTS0);		// free-running
 
-	ACSR	=	(0<<ACD)	|
- 				(1<<ACBG)	|		// Use band-gap reference (1.1v)
-				(0<<ACO)	|
-				(0<<ACI)	|
-				(0<<ACIE)	|
-				(0<<ACIS1)	|
-				(0<<ACIS0);
+	DIDR0	|=	(1<<ADC_INPUT);	// Disable digital input on ADC2
 
-	DIDR0	=	(1<<ADC3D)	|		// disable digital input on PB3
-				(0<<ADC2D)	|
-				(0<<ADC1D)	|
-				(0<<ADC0D);
-
-	DDRB	&=	~(1<<COMP_INPUT);	// Set comparator pin as input
+	DDRB	&=	~(1<<ADC_INPUT);	// Set comparator pin as input
 }
 
 // -------------------------------------------------------------------------------------
@@ -102,7 +132,10 @@ static void initDiagLed(void)
 static void pwmOff(void)
 {
 	// disable the output pin
-	DDRB	&=	~(1<<PWM_OUTPUT);
+	DDRB	&= ~(
+				(1<<PWM_OUTPUT) |
+				(1<<PWM_OUTPUT_COMP)
+			);
 }
 
 // -------------------------------------------------------------------------------------
@@ -110,7 +143,8 @@ static void pwmOff(void)
 static void pwmOn(void)
 {
 	// enable PWM output pin
-	DDRB	|=	(1<<PWM_OUTPUT);
+	DDRB	|=	(1<<PWM_OUTPUT) |
+				(1<<PWM_OUTPUT_COMP);
 }
 
 // -------------------------------------------------------------------------------------
@@ -127,36 +161,28 @@ static void setup(void)
 	initDiagLed();
 	initTimer0();
 	initTimer1();
-	initComparator();
+	initAdc();
 
 	pwmOff();
+
+	_sample = 0;
 
 	sei();
 }
 
 // -------------------------------------------------------------------------------------
-// Process the data from the ADC
-static void processComparator(void)
+// Processes the ADC result to keep the voltage on target
+static void ProcessLatestADCSample(uint8_t sample)
 {
-	// check comparator - we'll do simple skip-mode type PWM.
-	// If the voltage is higher, skip a cycle.  If the voltage is lower,
-	// don't skip a cycle.  We'll skip by turning the PWM output
-	// on and off (by setting OC1B to either 0 or the PWM value)
+	//static uint8_t dutyCycle = 0;
 
-	if ((ACSR & (1<<ACO)) == 0)
+	if (sample > 128)
 	{
-		// comparater output is 0 - positive input is greater than negative input
-		// AIN < REF
-		// Enable PWM output because voltage is too low
-		pwmOff();
+		//pwmOff();
+		return;
 	}
-	else
-	{
-		// comparator output is 1 - positive input is less than negative input
-		// AIN > REF
-		// Disable PWM output because voltage is too high
-		pwmOn();
-	}
+
+	//pwmOn();
 }
 
 // -------------------------------------------------------------------------------------
@@ -172,15 +198,34 @@ int main(void)
 	while(1)
 	{
 		//wdt_reset();
-		processComparator();
+		ProcessLatestADCSample(_sample);
 	}
 
 	return 0;
 }
 
 // -------------------------------------------------------------------------------------
+// ADC conversion-complete ISR
+ISR(ADC_vect)
+{
+	// left-adjust result, just read ADCH
+	_sample = ADCH;
+}
+
+// -------------------------------------------------------------------------------------
 // Timer0 compareA interrupt handler (running @ 1KHz)
 ISR(TIM0_COMPA_vect)
 {
-	// no-op
+	static uint16_t	delay = 1000;
+
+	if (delay == 500)
+		PORTB |= (1<<DIAG_LED);
+	else if (delay == 1000)
+		PORTB &= ~(1<<DIAG_LED);
+
+	delay--;
+	if (!delay)
+	{
+		delay = 1000;
+	}
 }
