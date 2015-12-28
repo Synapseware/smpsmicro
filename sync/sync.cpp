@@ -27,21 +27,23 @@ static void initTimer1(void)
 {
 	// Configure Timer1
 	{
-		/*
-		PLLCSR	=	(0<<LSM)	|		// disable low-speed mode (assuming at that VCC is at least 2.4v)
-					(1<<PLLE)	|		// make sure PLL is enabled
-					(1<<PCKE);			// enable high speed PLL clock
-		*/
-		PLLCSR	=	0;					// for testing, disable the PLL
+		// Stop T/C1
+		TCCR1	=	0;
 
+		// Configure the PLL as the clock source for T/C1
+		PLLCSR	=	(1<<PLLE);			// Enable the PLL	
+		while ((PLLCSR & (1<<PLOCK)) == 0);
+		PLLCSR	|=	(1<<PCKE);			// Set the PLL as T/C1 clock source
+
+		// Configure T/C1
 		TCCR1	=	(0<<CTC1)	|		// 
 					(0<<COM1A1)	|		// see page 86 for details
 					(1<<COM1A0)	|		// 
 					(1<<PWM1A)	|		// enable channel A PWM
-					(0<<CS13)	|		// PLLCLK/16
-					(1<<CS12)	|		// PLLCLK/16
-					(0<<CS11)	|		// PLLCLK/16
-					(1<<CS10);			// PLLCLK/16
+					(0<<CS13)	|		// PLLCLK/1
+					(0<<CS12)	|		// PLLCLK/1
+					(0<<CS11)	|		// PLLCLK/1
+					(1<<CS10);			// PLLCLK/1
 
 		GTCCR	|=	(0<<TSM)	|		// disable counter/timer sync mode
 					(0<<PWM1B)	|		// no PWM on channel B
@@ -58,6 +60,7 @@ static void initTimer1(void)
 					(1<<TOIE1)
 				);
 
+		// Set PWM delay values
 		OCR1C	=	DUTY_CYCLE_CLK - 1;
 		OCR1A	=	(DUTY_CYCLE_CLK / 2) - 1;
 		OCR1B	=	(DUTY_CYCLE_CLK / 2) - 1;
@@ -65,15 +68,15 @@ static void initTimer1(void)
 
 	// Configure the deadtime generator
 	{
-		DTPS1	=	(1<<DTPS11)	|		// Deadtime prescalar
-					(1<<DTPS10);		// 
+		DTPS1	=	(0<<DTPS11)	|		// Deadtime prescalar
+					(0<<DTPS10);		// 
 
-		DT1A	=	(1<<DT1AH3)	|		// 
-					(1<<DT1AH2)	|		// 
+		DT1A	=	(0<<DT1AH3)	|		// 
+					(0<<DT1AH2)	|		// 
 					(1<<DT1AH1)	|		// 
 					(1<<DT1AH0)	|		// 
-					(1<<DT1AL3)	|		// 
-					(1<<DT1AL2)	|		// 
+					(0<<DT1AL3)	|		// 
+					(0<<DT1AL2)	|		// 
 					(1<<DT1AL1)	|		// 
 					(1<<DT1AL0);		// 
 
