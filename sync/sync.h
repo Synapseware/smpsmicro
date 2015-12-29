@@ -25,7 +25,7 @@
 // Constants
 #define	VOLTAGE_IN				5
 #define VOLTAGE_OUT				3.3
-#define DUTY_CYCLE_CLK			160
+#define DUTY_CYCLE_CLK			170
 #define DUTY_CYCLE				(VOLTAGE_OUT/VOLTAGE_IN)
 const uint8_t DUTY_CYCLE_PWM	= (uint8_t)(DUTY_CYCLE_CLK * DUTY_CYCLE);
 

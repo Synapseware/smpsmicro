@@ -41,7 +41,7 @@ static void initTimer1(void)
 					(1<<COM1A0)	|		// 
 					(1<<PWM1A)	|		// enable channel A PWM
 					(0<<CS13)	|		// PLLCLK/1
-					(0<<CS12)	|		// PLLCLK/1
+					(1<<CS12)	|		// PLLCLK/1
 					(0<<CS11)	|		// PLLCLK/1
 					(1<<CS10);			// PLLCLK/1
 
@@ -62,7 +62,7 @@ static void initTimer1(void)
 
 		// Set PWM delay values
 		OCR1C	=	DUTY_CYCLE_CLK - 1;
-		OCR1A	=	(DUTY_CYCLE_CLK / 2) - 1;
+		OCR1A	=	(DUTY_CYCLE_CLK / 4.7) - 1;
 		OCR1B	=	(DUTY_CYCLE_CLK / 2) - 1;
 	}
 
