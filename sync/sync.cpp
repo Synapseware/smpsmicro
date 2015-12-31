@@ -40,10 +40,10 @@ static void initTimer1(void)
 					(0<<COM1A1)	|		// see page 86 for details
 					(1<<COM1A0)	|		// 
 					(1<<PWM1A)	|		// enable channel A PWM
-					(0<<CS13)	|		// PLLCLK/1
-					(1<<CS12)	|		// PLLCLK/1
-					(0<<CS11)	|		// PLLCLK/1
-					(1<<CS10);			// PLLCLK/1
+					(0<<CS13)	|		// PLLCLK/16
+					(1<<CS12)	|		// PLLCLK/16
+					(0<<CS11)	|		// PLLCLK/16
+					(1<<CS10);			// PLLCLK/16
 
 		GTCCR	|=	(0<<TSM)	|		// disable counter/timer sync mode
 					(0<<PWM1B)	|		// no PWM on channel B
