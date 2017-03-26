@@ -2,6 +2,7 @@
 
 
 volatile uint8_t _sample = 0;
+const uint8_t DUTY_CYCLE_PWM	= (uint8_t)(DUTY_CYCLE_CLK * DUTY_CYCLE);
 
 
 // -------------------------------------------------------------------------------------
@@ -12,12 +13,12 @@ static void initTimer0(void)
 	TCCR0A	=	(1<<WGM01)	|		// CTC
 				(0<<WGM00);
 
-	TCCR0B	=	(0<<CS02)	|		// CLK/64: 16MHz/64 = 250KHz
-				(1<<CS01)	|
+	TCCR0B	=	(1<<CS02)	|		// CLK/1024: 16MHz/1024 = 15,625Hz
+				(0<<CS01)	|
 				(1<<CS00)	|
 				(0<<WGM02);			// CTC
 
-	OCR0A	= 249;					// 250kHz/250 = 1KHz
+	OCR0A	= 125-1;				// 15.625kHz/125 = 125Hz
 	TIMSK	|= (1<<OCIE0A);			// enable TCNT01 == OCR0A interrupt
 }
 
@@ -193,42 +194,12 @@ int main(void)
 {
 	setup();
 
-	//WDTCR &= 0b11011000;	// set for 16ms timeout
-	//WDTCR |= (1<<WDE);		// enable watchdog timer
-
 	pwmOn();
 
 	while(1)
 	{
-		//wdt_reset();
 		ProcessLatestADCSample(_sample);
 	}
 
 	return 0;
-}
-
-// -------------------------------------------------------------------------------------
-// ADC conversion-complete ISR
-ISR(ADC_vect)
-{
-	// left-adjust result, just read ADCH
-	_sample = ADCH;
-}
-
-// -------------------------------------------------------------------------------------
-// Timer0 compareA interrupt handler (running @ 1KHz)
-ISR(TIM0_COMPA_vect)
-{
-	static uint16_t	delay = 1000;
-
-	if (delay == 500)
-		PORTB |= (1<<DIAG_LED);
-	else if (delay == 1000)
-		PORTB &= ~(1<<DIAG_LED);
-
-	delay--;
-	if (!delay)
-	{
-		delay = 1000;
-	}
 }
